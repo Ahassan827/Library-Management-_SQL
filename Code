@@ -88,8 +88,8 @@ HAVING COUNT(*) > 1
 
 Select b.isbn , b.book_title, count(ist.issued_id) as issue_count
 into book_issued_cnt
-from dbo.issued_status as ist
-join books as b
+from dbo.issued_status  ist
+join books  b
 on ist.issued_book_isbn=b.isbn
 group by b.isbn , b.book_title
 
