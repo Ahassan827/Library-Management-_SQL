@@ -112,8 +112,8 @@ WHERE category = 'Classic';
 
 SELECT 
     b.category,
-    SUM(b.rental_price),
-    COUNT(*)
+     SUM(b.rental_price) as rentalprice,
+ COUNT(*) as no_books
 FROM 
 issued_status as ist
 JOIN
@@ -133,9 +133,6 @@ VALUES('c118','sam','133 Pine St' , '2025-06-01'),
 ('C119', 'John', '143 Main St', '2025-5-01')
 SELECT * FROM members;
 
-update members
-set reg_date= dateadd(year,1,reg_date)
-where year(reg_date)=2024
 
 
 -----List Employees with Their Branch Manager's Name and their branch details:
