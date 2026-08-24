@@ -23,6 +23,12 @@ Alter table dbo.issued_status
 add constraint status_employee_fk foreign key (issued_emp_id)
 references dbo.employees (emp_id)
 
+
+CREATE INDEX IX_issued_member ON issued_status(issued_member_id)
+CREATE INDEX IX_issued_book ON issued_status(issued_book_isbn)
+CREATE INDEX IX_issued_emp ON issued_status(issued_emp_id)
+CREATE INDEX IX_return_issued ON return_status(issued_id)
+
 alter table return_status
 alter column return_book_isbn varchar (50) null
 
@@ -93,6 +99,7 @@ join books  b
 on ist.issued_book_isbn=b.isbn
 group by b.isbn , b.book_title
 
+CREATE INDEX IX_book_cnt ON book_issued_cnt
 
 Select *
 from dbo.book_issued_cnt
@@ -100,6 +107,19 @@ from dbo.book_issued_cnt
 
  ## Data Analysis
 
+
+
+
+-- Index للـ rental income query
+CREATE INDEX IX_books_isbn_category
+ON books(isbn, category, rental_price)
+
+-- Index للـ books not returned
+CREATE INDEX IX_return_returnid ON return_status(return_id)
+
+-- Index للـ branch manager query
+CREATE INDEX IX_emp_branchid ON employees(branch_id)
+CREATE INDEX IX_branch_managerid ON branches(manager_id)
 
 
 ---- Retrieve All Books in a Specific Category
