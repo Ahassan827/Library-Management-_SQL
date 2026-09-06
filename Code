@@ -24,10 +24,11 @@ add constraint status_employee_fk foreign key (issued_emp_id)
 references dbo.employees (emp_id)
 
 
-CREATE INDEX IX_issued_member ON issued_status(issued_member_id)
-CREATE INDEX IX_issued_book ON issued_status(issued_book_isbn)
-CREATE INDEX IX_issued_emp ON issued_status(issued_emp_id)
-CREATE INDEX IX_return_issued ON return_status(issued_id)
+CREATE INDEX IX_issued_status
+ON issued_status(issued_member_id, issued_book_isbn, issued_emp_id)
+
+CREATE INDEX IX_return_issued
+ON return_status(issued_id, return_id)
 
 alter table return_status
 alter column return_book_isbn varchar (50) null
@@ -36,8 +37,12 @@ alter column return_book_isbn varchar (50) null
 alter table return_status
 alter column issued_id varchar (10) 
 
-DELETE FROM return_status
-WHERE Return_id = 'RS101';
+BEGIN TRANSACTION
+    
+    DELETE FROM return_status WHERE Return_id = 'RS101'
+    
+    SELECT @@ROWCOUNT AS deleted_rows
+COMMIT
 
 SELECT *
 FROM dbo.return_status
@@ -57,49 +62,76 @@ references dbo.issued_status (issued_id)
 
 ----Create a New Book Record -- "978-1-60129-456-2', 'To Kill a Mockingbird', 'Classic', 6.00, 'yes', 'Harper Lee', 'J.B. Lippincott & Co.')"
 
-INSERT INTO books(isbn, book_title, category, rental_price, status, author, publisher)
-VALUES('978-1-60129-456-2', 'To Kill a Mockingbird', 'Classic', 6.00, 'yes', 'Harper Lee', 'J.B. Lippincott & Co.');
-SELECT * FROM books;
+-- ✅ الأحسن:
+BEGIN TRANSACTION
+    INSERT INTO books(isbn, book_title, category, rental_price, status, author, publisher)
+    VALUES('978-1-60129-456-2', 'To Kill a Mockingbird', 'Classic', 6.00, 'yes', 'Harper Lee', 'J.B. Lippincott & Co.')
+    
+    SELECT * FROM books WHERE isbn = '978-1-60129-456-2'
+COMMIT
+
 
 
 -----  Update an Existing Member's Address
 
-UPDATE members
-SET member_address = '125 Oak St'
-WHERE member_id = 'C103';
+BEGIN TRANSACTION
+    SELECT member_id, member_address FROM members WHERE member_id = 'C103'
+    
+    UPDATE members
+    SET member_address = '125 Oak St'
+    WHERE member_id = 'C103'
+    
+    SELECT member_id, member_address FROM members WHERE member_id = 'C103'
+COMMIT
+
 
 ----- Delete a Record from the Issued Status Table -- Objective: Delete the record with issued_id = 'IS121' from the issued_status table.
-DELETE FROM issued_status
-WHERE   issued_id =   'IS121';
+BEGIN TRANSACTION
+ 
+    DELETE FROM issued_status WHERE issued_id = 'IS121'
+    
+    SELECT @@ROWCOUNT AS deleted_rows
+COMMIT
 
 
 ------ Retrieve All Books Issued by a Specific Employee -- Objective: Select all books issued by the employee with emp_id = 'E101'.
 
-SELECT * FROM issued_status
+SELECT 
+    issued_id,
+    issued_member_id,
+    issued_book_isbn,
+    issued_date,
+    issued_book_name,
+issued_emp_id
+FROM issued_status
 WHERE issued_emp_id = 'E101'
+ORDER BY issued_date DESC
 
 ------List Members Who Have Issued More Than One Book -- Objective: Use GROUP BY to find members who have issued more than one book.
-
-SELECT
+SELECT 
     issued_emp_id,
-    COUNT(*)
+    COUNT(*) AS total_books
 FROM issued_status
 GROUP BY issued_emp_id
 HAVING COUNT(*) > 1
+ORDER BY total_books DESC
 
 
 ## CTAS 
 
 ----Create Summary Tables: Used CTAS to generate new tables based on query results - each book and total book_issued_cnt
 
-Select b.isbn , b.book_title, count(ist.issued_id) as issue_count
-into book_issued_cnt
-from dbo.issued_status  ist
-join books  b
-on ist.issued_book_isbn=b.isbn
-group by b.isbn , b.book_title
+DROP TABLE IF EXISTS book_issued_cnt
 
-CREATE INDEX IX_book_cnt ON book_issued_cnt
+SELECT b.isbn, b.book_title, COUNT(ist.issued_id) AS issue_count
+INTO book_issued_cnt
+FROM dbo.issued_status ist
+JOIN books b ON ist.issued_book_isbn = b.isbn
+GROUP BY b.isbn, b.book_title
+
+
+CREATE INDEX IX_book_cnt
+ON book_issued_cnt(issue_count DESC)
 
 Select *
 from dbo.book_issued_cnt
@@ -124,34 +156,44 @@ CREATE INDEX IX_branch_managerid ON branches(manager_id)
 
 ---- Retrieve All Books in a Specific Category
 
-SELECT *
+SELECT isbn,
+    book_title,
+    author,
+    rental_price
 FROM books
-WHERE category = 'Classic';
+WHERE category = 'Classic'
+ORDER BY rental_price DESC
 
 ------- Find Total Rental Income by Category:
 
 SELECT 
     b.category,
-     SUM(b.rental_price) as rentalprice,
- COUNT(*) as no_books
-FROM 
-issued_status as ist
-JOIN
-books as b
-ON b.isbn = ist.issued_book_isbn
+    ROUND(SUM(b.rental_price), 2) AS total_rental_income,
+    COUNT(*) AS total_issues,
+    ROUND(AVG(b.rental_price), 2) AS avg_rental_price
+FROM issued_status ist
+JOIN books b ON b.isbn = ist.issued_book_isbn
 GROUP BY b.category
+ORDER BY total_rental_income DESC
 
 
 ------List Members Who Registered in the Last 180 Days
+   SELECT
+   member_id,
+    member_name,
+    member_address,
+    reg_date
+FROM members
+WHERE reg_date >= DATEADD(DAY, -180, GETDATE())
+ORDER BY reg_date DESC
 
-SELECT * FROM members
-WHERE reg_date >= dateadd(DAY,-180,getdate())
-
-
-INSERT INTO members(member_id , member_name,member_address,reg_date)
-VALUES('c118','sam','133 Pine St' , '2025-06-01'),
-('C119', 'John', '143 Main St', '2025-5-01')
-SELECT * FROM members;
+BEGIN TRANSACTION
+    INSERT INTO members(member_id, member_name, member_address, reg_date)
+    VALUES('C118', 'Sam', '133 Pine St', '2025-06-01'),
+          ('C119', 'John', '143 Main St', '2025-05-01')
+    
+    SELECT * FROM members WHERE member_id IN ('C118', 'C119')
+COMMIT
 
 
 
@@ -162,28 +204,42 @@ SELECT
     e1.emp_name,
     e1.position,
     e1.salary,
-    b.*,
-    e2.emp_name as manager
-FROM employees  e1
-JOIN 
-branches b
-ON e1.branch_id = b.branch_id    
-JOIN
-employees  e2
-ON e2.emp_id = b.manager_id
+    b.branch_id,
+    b.branch_name,
+    b.city,
+    ISNULL(e2.emp_name, 'No Manager') AS manager
+FROM employees e1
+JOIN branches b ON e1.branch_id = b.branch_id    
+LEFT JOIN employees e2 ON e2.emp_id = b.manager_id
+ORDER BY b.branch_name, e1.emp_name
 
 
 
 -----Create a Table of Books with Rental Price Above a Certain Threshold
 
-Select *
-into expensive_books 
-from dbo.books
+DROP TABLE IF EXISTS expensive_books
+SELECT 
+    isbn,
+    book_title,
+    category,
+    rental_price,
+    author
+INTO expensive_books 
+FROM dbo.books
 WHERE rental_price > 7.00
+ORDER BY rental_price DESC
+
+
+CREATE INDEX IX_expensive_books
+ON expensive_books(rental_price DESC)
 
 ----  Retrieve the List of Books Not Yet Returned
 
-SELECT * FROM issued_status as ist
+SELECT    ist.issued_id,
+    ist.issued_member_id,
+    ist.issued_book_isbn,
+    ist.issued_date
+FROM issued_status as ist
 LEFT JOIN
 return_status as rs
 ON rs.issued_id = ist.issued_id
