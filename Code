@@ -24,12 +24,6 @@ add constraint status_employee_fk foreign key (issued_emp_id)
 references dbo.employees (emp_id)
 
 
-CREATE INDEX IX_issued_status
-ON issued_status(issued_member_id, issued_book_isbn, issued_emp_id)
-
-CREATE INDEX IX_return_issued
-ON return_status(issued_id, return_id)
-
 alter table return_status
 alter column return_book_isbn varchar (50) null
 
@@ -48,14 +42,27 @@ SELECT *
 FROM dbo.return_status
 WHERE issued_id NOT IN (SELECT issued_id FROM dbo.issued_status);
 
-DELETE FROM dbo.return_status
-WHERE issued_id NOT IN (SELECT issued_id FROM dbo.issued_status);
+BEGIN TRANSACTION
+    DELETE FROM dbo.return_status
+    WHERE issued_id NOT IN (SELECT issued_id FROM dbo.issued_status)
+    SELECT @@ROWCOUNT AS deleted_orphans
+COMMIT
 
 Alter table dbo.return_status
 add constraint return_issued_id foreign key (issued_id)
 references dbo.issued_status (issued_id)
 
 
+CREATE INDEX IX_issued_member ON dbo.issued_status(issued_member_id);
+CREATE INDEX IX_issued_book ON dbo.issued_status(issued_book_isbn);
+CREATE INDEX IX_issued_emp ON dbo.issued_status(issued_emp_id);
+
+CREATE INDEX IX_return_issued_id ON dbo.return_status(issued_id);
+
+CREATE INDEX IX_books_isbn_category ON dbo.books(category, rental_price);
+CREATE INDEX IX_emp_branchid ON dbo.employees(branch_id);
+CREATE INDEX IX_branch_managerid ON dbo.branches(manager_id);
+GO
 
 ## CRUD Operations
 
@@ -112,7 +119,7 @@ SELECT
     issued_emp_id,
     COUNT(*) AS total_books
 FROM issued_status
-GROUP BY issued_emp_id
+GROUP BY issued_member_id
 HAVING COUNT(*) > 1
 ORDER BY total_books DESC
 
@@ -142,16 +149,7 @@ from dbo.book_issued_cnt
 
 
 
--- Index للـ rental income query
-CREATE INDEX IX_books_isbn_category
-ON books(isbn, category, rental_price)
 
--- Index للـ books not returned
-CREATE INDEX IX_return_returnid ON return_status(return_id)
-
--- Index للـ branch manager query
-CREATE INDEX IX_emp_branchid ON employees(branch_id)
-CREATE INDEX IX_branch_managerid ON branches(manager_id)
 
 
 ---- Retrieve All Books in a Specific Category
