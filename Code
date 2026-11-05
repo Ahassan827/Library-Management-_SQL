@@ -116,7 +116,7 @@ ORDER BY issued_date DESC
 
 ------List Members Who Have Issued More Than One Book -- Objective: Use GROUP BY to find members who have issued more than one book.
 SELECT 
-    issued_emp_id,
+    issued_member_id,
     COUNT(*) AS total_books
 FROM issued_status
 GROUP BY issued_member_id
@@ -176,6 +176,7 @@ ORDER BY total_rental_income DESC
 
 
 ------List Members Who Registered in the Last 180 Days
+
    SELECT
    member_id,
     member_name,
